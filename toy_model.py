@@ -63,7 +63,7 @@ def create_lr_scheduler(lr_warmup_ratio, lr_constant_ratio, num_training_steps, 
     
     return torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
 
-def train(model, X, num_epochs, tensorboard_logdir, clean_logdir_first=True):
+def train(model, X, num_epochs, lr, tensorboard_logdir=None, clean_logdir_first=True):
     """
     Desc :          Trains model self-supervised style to reconstruct X.
                     Implicit assumption: model significantly overdetermined
@@ -73,10 +73,11 @@ def train(model, X, num_epochs, tensorboard_logdir, clean_logdir_first=True):
     @param num_epochs:                  (int) num epochs to train
     @param tensorboard_logdir:          (str)
     """
-    os.makedirs(tensorboard_logdir, exist_ok=True)
+    if tensorboard_logdir != None:
+        os.makedirs(tensorboard_logdir, exist_ok=True)
 
     # Clear contents of file first
-    if clean_logdir_first:
+    if tensorboard_logdir != None and clean_logdir_first:
         for filename in os.listdir(tensorboard_logdir):
             file_path = os.path.join(tensorboard_logdir, filename)
             try:
@@ -88,9 +89,10 @@ def train(model, X, num_epochs, tensorboard_logdir, clean_logdir_first=True):
                 print(f"Failed to delete {file_path}. Reason: {e}")
         print(f"Done cleaning contents of {tensorboard_logdir}")
 
-    writer = SummaryWriter(log_dir=tensorboard_logdir)
+    if tensorboard_logdir != None:
+        writer = SummaryWriter(log_dir=tensorboard_logdir)
     loss_fn = torch.nn.MSELoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr = 0.05, weight_decay = 0.0001)
+    optimizer = torch.optim.Adam(model.parameters(), lr = lr, weight_decay = 0.0001)
     lr_scheduler = create_lr_scheduler(
         lr_warmup_ratio=0.05,
         lr_constant_ratio=0.45,
@@ -105,17 +107,18 @@ def train(model, X, num_epochs, tensorboard_logdir, clean_logdir_first=True):
         y_hat = model(X_tensor)
         loss = loss_fn(y_hat, X_tensor)
 
-        writer.add_scalar("train/MSELoss", loss, epoch)
-        # Generate plot for current epoch
-        fig = plot_data(X, pathological_idxs = [], fig=None)
-        fig = plot_data(y_hat.detach().numpy(), pathological_idxs = [], colors=('teal', 'coral'), fig=fig)
-        # Save plot to tensorboard
-        # Add tensor to writer
-        writer.add_figure('train/plot', fig, epoch)
+        # Tensorboard stuff
+        if tensorboard_logdir != None:
+            writer.add_scalar("train/MSELoss", loss, epoch)
+            fig, PCA_M = plot_data(y_hat.detach().numpy(), pathological_idxs = [], colors=('coral', 'teal'), fig=None, PCA_M=None)
+            fig, _ = plot_data(X, pathological_idxs = [], fig=fig, PCA_M=PCA_M)
+            writer.add_figure('train/plot', fig, epoch)
 
         loss.backward()
         optimizer.step()
         lr_scheduler.step()
 
-    writer.flush()
-    return model
+    if tensorboard_logdir != None:
+        writer.flush()
+
+    return model, loss.detach()

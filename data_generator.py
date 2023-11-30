@@ -22,17 +22,30 @@ def get_indices_within_angle(arr, vec, angle):
     indices = np.argwhere(np.arccos(cos_angle) <= np.radians(angle))
     return indices
 
-def plot_data(data, pathological_idxs, colors=('black', 'yellow'), fig=None):
+def plot_data(data, pathological_idxs, colors=('black', 'yellow'), alpha=0.2, fig=None, PCA_M=None):
     """
     Desc :          Plots the top 2 principle components of data. 
                     If data is lower than 3D, also plots a 3D plot of the data.
 
                     If fig is provided, will simply scatter data onto the same fig.
+    
+    @param data:                    (np.ndarray) of datapoints we would like to plot. Could be original; could be reconstructed.
+    @param pathological_idxs:       (np.ndarray) of indices that are near the pathological vector's direction
+    @param colors:                  (Tuple[str]) colors to plot [0]: non-pathological, [1]: pathological
+    @param fig:                     (plt.fig)
+    @param PCA_M:                   (np.ndarray) a PCA rotation matrix. If given, will not do pca.fit_transform, but will
+                                    simply apply PCA_M to the data.
     """
     non_pathological_idxs = np.setdiff1d(np.arange(data.shape[0]), pathological_idxs)
-    pca = PCA(n_components=2)
-    data_pca = pca.fit_transform(data)
 
+    if not isinstance(PCA_M, np.ndarray):
+        pca = PCA()
+        data_pca = pca.fit_transform(data)
+        PCA_M = pca.components_
+    else:
+        data_pca = data @ PCA_M.T
+
+    # Initialize the figure object
     if fig == None:
         if data.shape[1] > 3:
             fig = plt.figure(figsize=(2, 2))
@@ -51,33 +64,13 @@ def plot_data(data, pathological_idxs, colors=('black', 'yellow'), fig=None):
         else:
             third_axis = data[:,2]
 
-        ax1.scatter(data[non_pathological_idxs, 0], data[non_pathological_idxs, 1], third_axis[non_pathological_idxs], color=colors[0], alpha=0.5)
-        ax1.scatter(data[pathological_idxs, 0], data[pathological_idxs, 1], third_axis[pathological_idxs], color=colors[1], alpha=0.5)
+        ax1.scatter(data[non_pathological_idxs, 0], data[non_pathological_idxs, 1], third_axis[non_pathological_idxs], color=colors[0], alpha=alpha, s=3)
+        ax1.scatter(data[pathological_idxs, 0], data[pathological_idxs, 1], third_axis[pathological_idxs], color=colors[1], alpha=alpha, s=3)
 
-        ax2.scatter(data_pca[non_pathological_idxs, 0], data_pca[non_pathological_idxs, 1], color=colors[0], alpha=0.5)
-        ax2.scatter(data_pca[pathological_idxs, 0], data_pca[pathological_idxs, 1], color=colors[1], alpha=0.5)
+        ax2.scatter(data_pca[non_pathological_idxs, 0], data_pca[non_pathological_idxs, 1], color=colors[0], alpha=alpha, s=3)
+        ax2.scatter(data_pca[pathological_idxs, 0], data_pca[pathological_idxs, 1], color=colors[1], alpha=alpha, s=3)
     else:
-        plt.scatter(data_pca[non_pathological_idxs, 0], data_pca[non_pathological_idxs, 1], color=colors[0], alpha=0.5)
-        plt.scatter(data_pca[pathological_idxs, 0], data_pca[pathological_idxs, 1], color=colors[1], alpha=0.5)
+        plt.scatter(data_pca[non_pathological_idxs, 0], data_pca[non_pathological_idxs, 1], color=colors[0], alpha=alpha, s=3)
+        plt.scatter(data_pca[pathological_idxs, 0], data_pca[pathological_idxs, 1], color=colors[1], alpha=alpha, s=3)
     
-    return fig
-
-if __name__ == '__main__':
-    # args
-    N = 1000
-    k = 2
-    sparsity = 0.75
-    bottleneck_dim = 2
-    # np.random.seed(420)
-    tensorboard_logdir = "train_outs/debug"
-    num_epochs = 300
-
-    data = generate_data(N, k, sparsity)
-    pathological_vector = np.array([1] * k)
-    pathological_idxs = get_indices_within_angle(data, pathological_vector, 45)
-
-    # plot_data(data, pathological_idxs)
-
-    model = ToyModel(k, bottleneck_dim)
-    model.init_weights()
-    train(model, data, num_epochs, tensorboard_logdir)
+    return fig, PCA_M
