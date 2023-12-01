@@ -7,7 +7,34 @@ from data_generator import plot_data
 import matplotlib.pyplot as plt
 import numpy as np
 
-class ToyModel(torch.nn.Module):
+class AnthropicToyModel(torch.nn.Module):
+    """
+    This model follows this equation. For any input vector x:
+    model(x) = ReLU (W.T @ W @ x + b)
+
+    In reality, since we are dealing with matrix equations, it's more like
+    model(X) = ReLU (X @ W @ W.T + b)
+
+    This model is not entirely intuitive to me yet, so I created my own below.
+    """
+    def __init__(self, input_dim, hidden_dim):
+        super(AnthropicToyModel, self).__init__()
+
+        # Manual Xavier initialization
+        W_bound = np.sqrt(6 / (input_dim + hidden_dim))
+        b_bound = np.sqrt(6 / (input_dim + 1))
+        self.W = torch.nn.Parameter(torch.Tensor(input_dim, hidden_dim).uniform_(-W_bound, W_bound))
+        self.b = torch.nn.Parameter(torch.Tensor(1, input_dim).uniform_(-b_bound, b_bound))
+        self.final_activation = torch.nn.ReLU()
+
+    def init_weights(self):
+        pass
+    
+    def forward(self, x):
+        return self.final_activation(x @ self.W @ self.W.T + self.b)
+
+
+class RyanToyModel(torch.nn.Module):
     def __init__(self, input_dim, hidden_dim):
         super(ToyModel, self).__init__()
 
@@ -74,20 +101,10 @@ def train(model, X, num_epochs, lr, tensorboard_logdir=None, clean_logdir_first=
     @param tensorboard_logdir:          (str)
     """
     if tensorboard_logdir != None:
+        if os.path.isdir(tensorboard_logdir) and clean_logdir_first:
+            shutil.rmtree(tensorboard_logdir)
+            print(f"Done cleaning contents of {tensorboard_logdir}")
         os.makedirs(tensorboard_logdir, exist_ok=True)
-
-    # Clear contents of file first
-    if tensorboard_logdir != None and clean_logdir_first:
-        for filename in os.listdir(tensorboard_logdir):
-            file_path = os.path.join(tensorboard_logdir, filename)
-            try:
-                if os.path.isfile(file_path) or os.path.islink(file_path):
-                    os.unlink(file_path)
-                elif os.path.isdir(file_path):
-                    shutil.rmtree(file_path)
-            except Exception as e:
-                print(f"Failed to delete {file_path}. Reason: {e}")
-        print(f"Done cleaning contents of {tensorboard_logdir}")
 
     if tensorboard_logdir != None:
         writer = SummaryWriter(log_dir=tensorboard_logdir)
@@ -110,8 +127,20 @@ def train(model, X, num_epochs, lr, tensorboard_logdir=None, clean_logdir_first=
         # Tensorboard stuff
         if tensorboard_logdir != None:
             writer.add_scalar("train/MSELoss", loss, epoch)
-            fig, PCA_M = plot_data(y_hat.detach().numpy(), pathological_idxs = [], colors=('coral', 'teal'), fig=None, PCA_M=None)
-            fig, _ = plot_data(X, pathological_idxs = [], fig=fig, PCA_M=PCA_M)
+            fig, PCA_M, PCA_mu = plot_data(
+                y_hat.detach().numpy(),
+                pathological_idxs = [],
+                colors=('coral',
+                'teal'),
+                fig=None,
+                PCA_M=None,
+                PCA_mu=None)
+            fig, _, _ = plot_data(
+                X,
+                pathological_idxs = [],
+                fig=fig,
+                PCA_M=PCA_M,
+                PCA_mu=PCA_mu)
             writer.add_figure('train/plot', fig, epoch)
 
         loss.backward()

@@ -9,9 +9,9 @@ def generate_data(N, k, S):
     @param k:       (int) number of features
     @param S:       (float) sparsity: % chance that any feature x_i == 0.
     """
-    data = np.random.uniform(-1.0, 1.0, size=(N, k))
+    data = np.random.uniform(0.0, 1.0, size=(N, k))
     weight = np.random.uniform(0.0, 1.0, (N, k))
-    data = np.where(weight < S, 0., data)
+    data = np.where(weight < S, 1., data)
     return data
 
 def get_indices_within_angle(arr, vec, angle):
@@ -22,7 +22,7 @@ def get_indices_within_angle(arr, vec, angle):
     indices = np.argwhere(np.arccos(cos_angle) <= np.radians(angle))
     return indices
 
-def plot_data(data, pathological_idxs, colors=('black', 'yellow'), alpha=0.2, fig=None, PCA_M=None):
+def plot_data(data, pathological_idxs, colors=('black', 'yellow'), alpha=0.2, fig=None, PCA_M=None, PCA_mu=None):
     """
     Desc :          Plots the top 2 principle components of data. 
                     If data is lower than 3D, also plots a 3D plot of the data.
@@ -35,22 +35,25 @@ def plot_data(data, pathological_idxs, colors=('black', 'yellow'), alpha=0.2, fi
     @param fig:                     (plt.fig)
     @param PCA_M:                   (np.ndarray) a PCA rotation matrix. If given, will not do pca.fit_transform, but will
                                     simply apply PCA_M to the data.
+    @param PCA_mu:                  (np.ndarray) a mean vector to subtract from every data point.
     """
     non_pathological_idxs = np.setdiff1d(np.arange(data.shape[0]), pathological_idxs)
 
     if not isinstance(PCA_M, np.ndarray):
         pca = PCA()
-        data_pca = pca.fit_transform(data)
+        PCA_mu = np.mean(data, axis=0)
+        data_normalized = data - PCA_mu
+        data_pca = pca.fit_transform(data_normalized)
         PCA_M = pca.components_
     else:
-        data_pca = data @ PCA_M.T
+        data_pca = (data - PCA_mu) @ PCA_M.T
 
     # Initialize the figure object
     if fig == None:
         if data.shape[1] > 3:
-            fig = plt.figure(figsize=(2, 2))
+            fig = plt.figure(figsize=(3, 3))
         else:
-            fig = plt.figure(figsize=(4, 2))
+            fig = plt.figure(figsize=(6, 3))
             ax1 = fig.add_subplot(121, projection='3d')
             ax2 = fig.add_subplot(122)
     else:
@@ -73,4 +76,4 @@ def plot_data(data, pathological_idxs, colors=('black', 'yellow'), alpha=0.2, fi
         plt.scatter(data_pca[non_pathological_idxs, 0], data_pca[non_pathological_idxs, 1], color=colors[0], alpha=alpha, s=3)
         plt.scatter(data_pca[pathological_idxs, 0], data_pca[pathological_idxs, 1], color=colors[1], alpha=alpha, s=3)
     
-    return fig, PCA_M
+    return fig, PCA_M, PCA_mu
