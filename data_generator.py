@@ -11,7 +11,7 @@ def generate_data(N, k, S):
     """
     data = np.random.uniform(0.0, 1.0, size=(N, k))
     weight = np.random.uniform(0.0, 1.0, (N, k))
-    data = np.where(weight < S, 1., data)
+    data = np.where(weight < S, 0., data)
     return data
 
 def get_indices_within_angle(arr, vec, angle):
